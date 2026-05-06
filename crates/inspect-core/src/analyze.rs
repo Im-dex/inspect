@@ -59,7 +59,7 @@ pub(crate) fn build_context(
     let registry = create_default_registry();
 
     let file_changes = git
-        .get_changed_files(&scope)
+        .get_changed_files(&scope, &[])
         .map_err(|e| AnalyzeError::Git(e.to_string()))?;
 
     if file_changes.is_empty() {
@@ -86,7 +86,7 @@ pub(crate) fn build_context(
 
     // Phase 3: Build entity graph from ALL source files (parallel via rayon)
     let graph_start = Instant::now();
-    let graph = EntityGraph::build(git.repo_root(), &all_files, &registry);
+    let (graph, _all_entities) = EntityGraph::build(git.repo_root(), &all_files, &registry);
     let graph_build_ms = graph_start.elapsed().as_millis() as u64;
     let total_graph_entities = graph.entities.len();
 
@@ -411,6 +411,7 @@ pub(crate) fn compute_stats(reviews: &[EntityReview]) -> ReviewStats {
             ChangeType::Deleted => by_change.deleted += 1,
             ChangeType::Moved => by_change.moved += 1,
             ChangeType::Renamed => by_change.renamed += 1,
+            ChangeType::Reordered => by_change.modified += 1,
         }
     }
 

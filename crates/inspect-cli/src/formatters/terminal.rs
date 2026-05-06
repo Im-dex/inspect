@@ -54,6 +54,7 @@ pub fn print(result: &ReviewResult, show_context: bool) {
             sem_core::model::change::ChangeType::Modified => "~".yellow(),
             sem_core::model::change::ChangeType::Moved => ">".blue(),
             sem_core::model::change::ChangeType::Renamed => "r".blue(),
+            sem_core::model::change::ChangeType::Reordered => "↕".dimmed(),
         };
 
         println!(

@@ -29,6 +29,7 @@ pub fn print_terminal(result: &PredictResult) {
             sem_core::model::change::ChangeType::Renamed => "r".blue(),
             sem_core::model::change::ChangeType::Moved => ">".blue(),
             sem_core::model::change::ChangeType::Added => "+".green().bold(),
+            sem_core::model::change::ChangeType::Reordered => "↕".dimmed(),
         };
 
         println!(

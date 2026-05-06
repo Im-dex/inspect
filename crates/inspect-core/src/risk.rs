@@ -110,6 +110,7 @@ fn change_type_weight(ct: ChangeType) -> f64 {
         ChangeType::Renamed => 0.04,
         ChangeType::Moved => 0.0,
         ChangeType::Added => 0.02,
+        ChangeType::Reordered => 0.01,
     }
 }
 
