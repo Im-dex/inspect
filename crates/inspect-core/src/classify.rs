@@ -121,21 +121,18 @@ mod tests {
     use sem_core::model::change::{ChangeType, SemanticChange};
 
     fn make_change(before: &str, after: &str, structural: Option<bool>) -> SemanticChange {
-        SemanticChange {
-            id: "test".into(),
-            entity_id: "test::fn::foo".into(),
-            change_type: ChangeType::Modified,
-            entity_type: "function".into(),
-            entity_name: "foo".into(),
-            file_path: "test.rs".into(),
-            old_file_path: None,
-            before_content: Some(before.into()),
-            after_content: Some(after.into()),
-            commit_sha: None,
-            author: None,
-            timestamp: None,
-            structural_change: structural,
-        }
+        serde_json::from_value(serde_json::json!({
+            "id": "test",
+            "entityId": "test::fn::foo",
+            "changeType": "modified",
+            "entityType": "function",
+            "entityName": "foo",
+            "filePath": "test.rs",
+            "beforeContent": before,
+            "afterContent": after,
+            "structuralChange": structural,
+        }))
+        .expect("failed to construct SemanticChange")
     }
 
     #[test]
