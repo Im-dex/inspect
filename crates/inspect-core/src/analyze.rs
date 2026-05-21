@@ -10,6 +10,7 @@ use sem_core::parser::plugins::create_default_registry;
 
 use crate::classify::classify_change;
 use crate::github::FilePair;
+use crate::noise::is_noise_file;
 use crate::risk::{compute_risk_score, is_public_api, rank_dependent, score_to_level};
 use crate::types::*;
 use crate::untangle::untangle;
@@ -58,9 +59,12 @@ pub(crate) fn build_context(
     let git = GitBridge::open(repo_path).map_err(|e| AnalyzeError::Git(e.to_string()))?;
     let registry = create_default_registry();
 
-    let file_changes = git
+    let file_changes: Vec<FileChange> = git
         .get_changed_files(&scope, &[])
-        .map_err(|e| AnalyzeError::Git(e.to_string()))?;
+        .map_err(|e| AnalyzeError::Git(e.to_string()))?
+        .into_iter()
+        .filter(|change| !is_noise_file(&change.file_path))
+        .collect();
 
     if file_changes.is_empty() {
         return Ok(None);
@@ -264,6 +268,7 @@ pub fn analyze_remote(file_pairs: &[FilePair]) -> Result<ReviewResult, AnalyzeEr
 
     let file_changes: Vec<FileChange> = file_pairs
         .iter()
+        .filter(|fp| !is_noise_file(&fp.filename))
         .map(|fp| {
             let status = match fp.status.as_str() {
                 "added" => FileStatus::Added,
@@ -355,7 +360,7 @@ pub fn analyze_remote(file_pairs: &[FilePair]) -> Result<ReviewResult, AnalyzeEr
     let timing = Timing {
         diff_ms,
         list_files_ms: 0,
-        file_count: file_pairs.len(),
+        file_count: file_changes.len(),
         graph_build_ms: 0,
         graph_entity_count: 0,
         scoring_ms,
@@ -513,6 +518,7 @@ fn list_source_files(repo_path: &Path) -> Result<Vec<String>, AnalyzeError> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let files: Vec<String> = stdout
         .lines()
+        .filter(|f| !is_noise_file(f))
         .filter(|f| {
             let f = f.to_lowercase();
             f.ends_with(".rs")
@@ -656,5 +662,101 @@ mod tests {
         // This should either succeed with entities or succeed with empty
         // depending on whether the initial commit has a parent
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn analyze_filters_noise_files_before_diffing() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        init_repo(dir);
+
+        std::fs::write(
+            dir.join("main.rs"),
+            "fn hello() {\n    println!(\"one\");\n}\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("go.sum"), "module.example/pkg v0.0.1 h1:aaaa=\n").unwrap();
+        commit(dir, "init");
+
+        std::fs::write(
+            dir.join("main.rs"),
+            "fn hello() {\n    println!(\"two\");\n}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("go.sum"),
+            "module.example/pkg v0.0.1 h1:bbbb=\nmodule.example/pkg v0.0.2 h1:bbbb=\n",
+        )
+        .unwrap();
+        commit(dir, "change");
+
+        let result = analyze(
+            dir,
+            DiffScope::Commit {
+                sha: "HEAD".to_string(),
+            },
+        )
+        .unwrap();
+
+        assert!(!result.entity_reviews.is_empty());
+        assert!(result
+            .entity_reviews
+            .iter()
+            .all(|review| review.file_path == "main.rs"));
+        assert_eq!(result.stats.total_entities, result.entity_reviews.len());
+    }
+
+    #[test]
+    fn analyze_returns_empty_when_only_noise_files_change() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        init_repo(dir);
+
+        std::fs::write(dir.join("go.sum"), "module.example/pkg v0.0.1 h1:aaaa=\n").unwrap();
+        commit(dir, "init");
+
+        std::fs::write(
+            dir.join("go.sum"),
+            "module.example/pkg v0.0.1 h1:bbbb=\nmodule.example/pkg v0.0.2 h1:bbbb=\n",
+        )
+        .unwrap();
+        commit(dir, "change");
+
+        let result = analyze(
+            dir,
+            DiffScope::Commit {
+                sha: "HEAD".to_string(),
+            },
+        )
+        .unwrap();
+
+        assert!(result.entity_reviews.is_empty());
+        assert_eq!(result.stats.total_entities, 0);
+    }
+
+    #[test]
+    fn analyze_remote_counts_filtered_files_in_timing() {
+        let result = analyze_remote(&[
+            FilePair {
+                filename: "go.sum".to_string(),
+                status: "modified".to_string(),
+                before_content: Some("module.example/pkg v0.0.1 h1:aaaa=\n".to_string()),
+                after_content: Some("module.example/pkg v0.0.1 h1:bbbb=\n".to_string()),
+            },
+            FilePair {
+                filename: "main.rs".to_string(),
+                status: "modified".to_string(),
+                before_content: Some("fn hello() {\n    println!(\"one\");\n}\n".to_string()),
+                after_content: Some("fn hello() {\n    println!(\"two\");\n}\n".to_string()),
+            },
+        ])
+        .unwrap();
+
+        assert_eq!(result.timing.file_count, 1);
+        assert!(!result.entity_reviews.is_empty());
+        assert!(result
+            .entity_reviews
+            .iter()
+            .all(|review| review.file_path == "main.rs"));
     }
 }
