@@ -61,7 +61,7 @@ jobs:
           mkdir -p "${dist}"
 
           cp "target/${TARGET}/release/${BIN_NAME}" "${dist}/${BIN_NAME}"
-          cp README.md LICENSE "${dist}/"
+          cp README.md LICENSE.md "${dist}/"
 
           tar -czf "${ASSET_NAME}" -C "${dist}" .
           sha256sum "${ASSET_NAME}" > "${ASSET_NAME}.sha256"
@@ -83,7 +83,7 @@ jobs:
           $destination = Join-Path $dist "$env:BIN_NAME$env:EXE_SUFFIX"
           Copy-Item $source $destination
           Copy-Item "README.md" $dist
-          Copy-Item "LICENSE" $dist
+          Copy-Item "LICENSE.md" $dist
 
           Compress-Archive -Path (Join-Path $dist "*") -DestinationPath $env:ASSET_NAME -Force
           $digest = (Get-FileHash -Algorithm SHA256 $env:ASSET_NAME).Hash.ToLowerInvariant()
