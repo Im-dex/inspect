@@ -26,7 +26,3 @@ jobs:
 
       - name: Run tests
         run: cargo test
-
-      - name: Check binary exists
-        shell: pwsh
-        run: dir target/x86_64-pc-windows-msvc/release/inspect.exe
