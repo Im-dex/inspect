@@ -11,7 +11,12 @@ use inspect_core::types::RiskLevel;
 #[derive(Args)]
 pub struct DiffArgs {
     /// Commit ref or range (e.g. HEAD~1, main..feature, abc123)
-    pub target: String,
+    #[arg(required_unless_present = "staged", conflicts_with = "staged")]
+    pub target: Option<String>,
+
+    /// Analyze changes staged for the next commit
+    #[arg(long)]
+    pub staged: bool,
 
     /// Output format
     #[arg(long, value_enum, default_value = "terminal")]
@@ -35,7 +40,15 @@ pub struct DiffArgs {
 }
 
 pub fn run(args: DiffArgs) {
-    let scope = parse_scope(&args.target);
+    let scope = if args.staged {
+        DiffScope::Staged
+    } else {
+        parse_scope(
+            args.target
+                .as_deref()
+                .expect("clap requires a target unless --staged is used"),
+        )
+    };
     let repo = args.repo.canonicalize().unwrap_or(args.repo.clone());
 
     let options = AnalyzeOptions {
@@ -84,5 +97,44 @@ fn parse_risk_level(s: &str) -> RiskLevel {
         "high" => RiskLevel::High,
         "medium" => RiskLevel::Medium,
         _ => RiskLevel::Low,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::DiffArgs;
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(flatten)]
+        diff: DiffArgs,
+    }
+
+    #[test]
+    fn accepts_staged_without_target() {
+        let cli = TestCli::try_parse_from(["inspect-diff", "--staged"]).unwrap();
+
+        assert!(cli.diff.staged);
+        assert!(cli.diff.target.is_none());
+    }
+
+    #[test]
+    fn still_accepts_commit_target() {
+        let cli = TestCli::try_parse_from(["inspect-diff", "HEAD~1"]).unwrap();
+
+        assert!(!cli.diff.staged);
+        assert_eq!(cli.diff.target.as_deref(), Some("HEAD~1"));
+    }
+
+    #[test]
+    fn requires_target_or_staged() {
+        assert!(TestCli::try_parse_from(["inspect-diff"]).is_err());
+    }
+
+    #[test]
+    fn rejects_target_with_staged() {
+        assert!(TestCli::try_parse_from(["inspect-diff", "HEAD", "--staged"]).is_err());
     }
 }

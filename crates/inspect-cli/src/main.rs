@@ -13,7 +13,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Review entity-level changes between commits
+    /// Review entity-level changes in commits or the Git stage
     Diff(commands::diff::DiffArgs),
     /// Review changes in a GitHub pull request
     Pr(commands::pr::PrArgs),

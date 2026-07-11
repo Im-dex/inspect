@@ -91,14 +91,15 @@ cd inspect && cargo build --release
 
 ## Commands
 
-### `inspect diff <ref>`
+### `inspect diff <ref> | --staged`
 
-Review entity-level changes for a commit or range.
+Review entity-level changes for a commit, range, or the changes staged for the next commit.
 
 ```bash
 inspect diff HEAD~1              # last commit
 inspect diff main..feature       # branch comparison
 inspect diff abc123              # specific commit
+inspect diff --staged            # staged changes
 inspect diff HEAD~1 --context    # show dependency details
 inspect diff HEAD~1 --min-risk high  # only high/critical
 inspect diff HEAD~1 --format json    # JSON output
